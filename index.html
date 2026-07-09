@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Healthcare Intelligence Updates</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #dcdcdc;
+    }
+    .container {
+      border: 2px solid #2e6b4f;
+      margin: 20px;
+      padding: 20px;
+      background: #e6e6e6;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #555;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .searchbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .searchbar input {
+      flex: 1;
+      padding: 8px 10px;
+      font-size: 14px;
+      border: 2px solid #3b73c4;
+      background: #fff;
+    }
+    .searchbar button {
+      padding: 8px 16px;
+      font-size: 14px;
+      border: 2px solid #2e6b4f;
+      background: #2e6b4f;
+      color: #fff;
+      cursor: pointer;
+    }
+    .searchbar button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+    .searchbar button.secondary {
+      background: #e6e6e6;
+      color: #2e6b4f;
+    }
+    .status {
+      font-size: 12px;
+      color: #555;
+      margin-bottom: 8px;
+      min-height: 16px;
+    }
+    .box {
+      border: 2px solid #3b73c4;
+      background: #f5f5f5;
+      height: 500px;
+      overflow-y: auto;
+      padding: 10px;
+      white-space: pre-wrap;
+      font-size: 14px;
+    }
+    .entry {
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+    .timestamp {
+      color: #777;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .search-tag {
+      color: #2e6b4f;
+      font-weight: bold;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h2>HEALTHCARE INTELLIGENCE UPDATES</h2>
+
+  <div class="searchbar">
+    <input type="text" id="searchInput" placeholder="Search the feeds (e.g. vaccine, FDA, gene therapy)..." />
+    <button id="searchBtn">Search</button>
+    <button id="liveBtn" class="secondary" style="display:none;">Back to live feed</button>
+  </div>
+  <div class="status" id="status">Live feed &mdash; updates automatically</div>
+
+  <div id="logBox" class="box"></div>
+</div>
+
+<script>
+// ==== CONFIGURE THESE TWO ====
+const LIVE_ENDPOINT   = "https://dhruvg17.app.n8n.cloud/webhook/healthcare-logs";
+const SEARCH_ENDPOINT = "https://dhruvg17.app.n8n.cloud/webhook/search-logs";
+// =============================
+
+const POLL_INTERVAL_MS = 86400000; // 24 hours
+const FETCH_HEADERS = { "ngrok-skip-browser-warning": "true" };
+
+let lastText = "";
+let mode = "live";           // "live" or "search"
+let liveBuffer = [];         // briefs that arrive while user is viewing a search
+
+const box       = document.getElementById("logBox");
+const statusEl  = document.getElementById("status");
+const input     = document.getElementById("searchInput");
+const searchBtn = document.getElementById("searchBtn");
+const liveBtn   = document.getElementById("liveBtn");
+
+function addEntry(text, tagText) {
+  const entry = document.createElement("div");
+  entry.className = "entry";
+
+  if (tagText) {
+    const tag = document.createElement("div");
+    tag.className = "search-tag";
+    tag.textContent = tagText;
+    entry.appendChild(tag);
+  }
+
+  const ts = document.createElement("div");
+  ts.className = "timestamp";
+  ts.textContent = "Updated: " + new Date().toLocaleString();
+  entry.appendChild(ts);
+
+  const body = document.createElement("div");
+  body.textContent = text;
+  entry.appendChild(body);
+
+  box.appendChild(entry);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ---- LIVE POLLING (unchanged rolling behaviour) ----
+async function fetchLive() {
+  if (mode !== "live") return; // pause polling while a search result is shown
+  try {
+    const res = await fetch(LIVE_ENDPOINT, { headers: FETCH_HEADERS });
+    const text = await res.text();
+    if (text && text !== lastText) {
+      addEntry(text);
+      lastText = text;
+    }
+  } catch (err) {
+    console.error("Error fetching healthcare brief:", err);
+  }
+}
+
+// ---- SEARCH ----
+async function doSearch() {
+  const q = input.value.trim();
+  if (!q) return;
+
+  mode = "search";
+  searchBtn.disabled = true;
+  liveBtn.style.display = "inline-block";
+  statusEl.textContent = "Searching feeds for \u201C" + q + "\u201D \u2014 this runs the full analysis and may take up to a minute...";
+
+  try {
+    const url = SEARCH_ENDPOINT + "?q=" + encodeURIComponent(q);
+    const res = await fetch(url, { headers: FETCH_HEADERS });
+    const text = await res.text();
+
+    box.innerHTML = ""; // search view replaces the log display
+    addEntry(text || "No results returned.", "SEARCH RESULTS: \u201C" + q + "\u201D");
+    statusEl.textContent = "Showing search results for \u201C" + q + "\u201D. Live updates are paused.";
+  } catch (err) {
+    console.error("Search error:", err);
+    statusEl.textContent = "Search failed \u2014 please try again.";
+  } finally {
+    searchBtn.disabled = false;
+  }
+}
+
+// ---- BACK TO LIVE ----
+function backToLive() {
+  mode = "live";
+  liveBtn.style.display = "none";
+  input.value = "";
+  box.innerHTML = "";
+  statusEl.textContent = "Live feed \u2014 updates automatically";
+  lastText = "";      // force redisplay of the latest brief
+  fetchLive();        // refresh immediately on return
+}
+
+searchBtn.addEventListener("click", doSearch);
+liveBtn.addEventListener("click", backToLive);
+input.addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
+
+setInterval(fetchLive, POLL_INTERVAL_MS);
+fetchLive();
+</script>
+</body>
+</html>
