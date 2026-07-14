@@ -101,11 +101,11 @@
 
 <script>
 // ==== CONFIGURE THESE TWO ====
-const LIVE_ENDPOINT   = "https://definite-hunting-antarctic.ngrok-free.dev/webhook-test/news";
-const SEARCH_ENDPOINT = "https://definite-hunting-antarctic.ngrok-free.dev/webhook-test/search-logs";
+const LIVE_ENDPOINT   = "https://definite-hunting-antarctic.ngrok-free.dev/webhook/news";
+const SEARCH_ENDPOINT = "https://definite-hunting-antarctic.ngrok-free.dev/webhook/search-logs";
 // =============================
 
-const POLL_INTERVAL_MS = 86400000; // 24 hours
+const POLL_INTERVAL_MS = 21600; // 24 hours
 const FETCH_HEADERS = { "ngrok-skip-browser-warning": "true" };
 
 let lastText = "";
